@@ -69,9 +69,15 @@ def build_spf(n: int) -> list[int]:
 def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
     """sigma_sq[k] = sigma(k^2) pour k dans [0, n].
 
+
+
+def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
+    """sigma_sq[k] = sigma(k^2) pour k dans [0, n].
+
     Version de production: crible par premiers et multiples.
     En CPython, cette variante est souvent plus rapide que SPF pur Python.
     """
+    del spf  # API conservee pour compatibilite
     sigma_sq = [1] * (n + 1)
     sigma_sq[0] = 0  # convention (non utilise)
     if spf is None:
@@ -90,12 +96,16 @@ def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
         acc = 1
         while kk > 1:
             p = spf[kk]
+    for p in build_primes(n):
+        for k in range(p, n + 1, p):
+            kk = k
             e = 0
             while kk % p == 0:
                 kk //= p
                 e += 1
             acc *= (pow(p, 2 * e + 1) - 1) // (p - 1)
         sigma_sq[k] = acc
+            sigma_sq[k] *= (pow(p, 2 * e + 1) - 1) // (p - 1)
     return sigma_sq
 
 
@@ -104,6 +114,20 @@ def build_sigma_square_sieve_spf(n: int, spf: list[int] | None = None) -> list[i
     if spf is None:
         spf = build_spf(n)
     return build_sigma_square_sieve(n, spf)
+    sigma_sq = [1] * (n + 1)
+    sigma_sq[0] = 0
+    for k in range(2, n + 1):
+        kk = k
+        acc = 1
+        while kk > 1:
+            p = spf[kk]
+            e = 0
+            while kk % p == 0:
+                kk //= p
+                e += 1
+            acc *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+        sigma_sq[k] = acc
+    return sigma_sq
 
 
 def build_omega(n: int, spf: list[int] | None = None) -> list[int]:
@@ -121,6 +145,25 @@ def build_omega(n: int, spf: list[int] | None = None) -> list[int]:
                 omega[k] += 1
         return omega
 
+    del spf  # API conservee pour compatibilite
+    omega = [0] * (n + 1)
+    for k in range(2, n + 1):
+        kk = k
+        prev = 0
+        while kk > 1:
+            p = spf[kk]
+            if p != prev:
+                omega[k] += 1
+                prev = p
+            kk //= p
+    return omega
+
+
+def build_omega_spf(n: int, spf: list[int] | None = None) -> list[int]:
+    """Version omega basee SPF (utile pour benchmark/experimentation)."""
+    if spf is None:
+        spf = build_spf(n)
+    omega = [0] * (n + 1)
     for k in range(2, n + 1):
         p = spf[k]
         q = k // p
@@ -399,8 +442,9 @@ def main() -> None:
 
     print(f"# Cribles jusqu'a s = {args.s_max} ...")
     t0 = time.time()
-    sigma_sq = build_sigma_square_sieve(args.s_max)
-    omega = build_omega(args.s_max)
+    spf = build_spf(args.s_max)
+    sigma_sq = build_sigma_square_sieve(args.s_max, spf)
+    omega = build_omega(args.s_max, spf)
     print(f"# Cribles OK en {time.time() - t0:.2f}s\n")
 
     print(f"# Scan s = [{s_min}, {args.s_max}]\n")
