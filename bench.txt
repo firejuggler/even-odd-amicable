@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Compat: permet d'executer le micro-benchmark via `python bench.txt`.
+"""Compat: permet d'executer le micro-benchmark via `python bench.txt`."""
 
 from __future__ import annotations
 
@@ -80,6 +81,14 @@ def _sanity_check_source(path: Path) -> None:
     if repaired:
         path.write_text(src, encoding="utf-8")
 
+    if repaired:
+        path.write_text(src, encoding="utf-8")
+
+    if any(m in src for m in markers):
+        raise RuntimeError(
+            f"Conflit de merge detecte dans {path.name} "
+            "(marqueurs <<<<<<< / ======= / >>>>>>>)."
+        )
     # Vérifie aussi qu'il n'y a pas d'erreur de parsing Python.
     try:
         compile(src, str(path), "exec")
@@ -90,6 +99,7 @@ def _sanity_check_source(path: Path) -> None:
             "Supprime les marqueurs de conflit et garde une seule version "
             "de chaque fonction (current/incoming/both nettoye)."
         ) from exc
+    compile(src, str(path), "exec")
 
 
 if __name__ == "__main__":
@@ -98,4 +108,8 @@ if __name__ == "__main__":
     _sanity_check_source(base / "micro_benchmark.py")
     _sanity_check_source(base / "even_odd_amicable_gmp.py")
     from micro_benchmark import main
+from micro_benchmark import main
+
+
+if __name__ == "__main__":
     main()
