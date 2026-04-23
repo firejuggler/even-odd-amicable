@@ -19,6 +19,9 @@ def _sanity_check_source(path: Path) -> None:
 
 
 if __name__ == "__main__":
-    _sanity_check_source(Path(__file__).with_name("even_odd_amicable_v2.py"))
+    base = Path(__file__).resolve().parent
+    _sanity_check_source(base / "even_odd_amicable_v2.py")
+    _sanity_check_source(base / "micro_benchmark.py")
+    _sanity_check_source(base / "even_odd_amicable_gmp.py")
     from micro_benchmark import main
     main()
