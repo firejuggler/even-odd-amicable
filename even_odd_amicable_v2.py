@@ -398,7 +398,7 @@ def scan(s_min: int, s_max: int,
 
 
 def verify(c: Candidate, trial_bound: int = 10_000_000) -> tuple[bool, bool]:
-    """Retourne (amicale?, hard?).  'hard' = m n'a pas pu etre factorise."""
+    """Retourne (amicale?, hard?).  hard = m non factorise avec la borne."""
     sigma_m = sigma_if_easy(c.m, trial_bound)
     if sigma_m is None:
         return False, True
