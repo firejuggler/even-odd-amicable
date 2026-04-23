@@ -148,6 +148,8 @@ def scan_segmented_gmp(object s_min_py, object s_max_py,
     cdef mp_bitcnt_t v2_
     cdef bint has_m_max = (m_max_py is not None) and (int(m_max_py) > 0)
     cdef bint stop = 0
+    cdef object segment_base_s
+    cdef object end_py
 
     mpz_init(s_min_z); mpz_init(s_max_z); mpz_init(L); mpz_init(R)
     mpz_init(m_max_z); mpz_init(tmp)
@@ -208,8 +210,6 @@ def scan_segmented_gmp(object s_min_py, object s_max_py,
             # crible
             for pi in range(n_small):
                 p = small_primes[pi]
-                if p > prime_limit:
-                    break
                 r_ul = mpz_fdiv_ui(L, <unsigned long>p)
                 if r_ul == 0:
                     k = 0
@@ -251,6 +251,9 @@ def scan_segmented_gmp(object s_min_py, object s_max_py,
             else:
                 i_start = 1
 
+            # Conversion mpz -> Python int faite une seule fois par segment.
+            segment_base_s = _mpz_to_pyint(L)
+
             for i in range(i_start, seg_len, 2):
                 scanned += 1
                 if om_arr[i] < 2:
@@ -282,7 +285,7 @@ def scan_segmented_gmp(object s_min_py, object s_max_py,
                     continue
                 kept_square += 1
 
-                s_py = _mpz_to_pyint(L) + i
+                s_py = segment_base_s + i
                 survivors.append((
                     s_py,
                     _mpz_to_pyint(n_sq),
@@ -302,7 +305,7 @@ def scan_segmented_gmp(object s_min_py, object s_max_py,
             total_square  += kept_square
 
             if on_segment is not None:
-                end_py = _mpz_to_pyint(R) - 1
+                end_py = segment_base_s + seg_len - 1
                 cont = on_segment(survivors, stats_delta, end_py)
                 if cont is False:
                     stop = 1
