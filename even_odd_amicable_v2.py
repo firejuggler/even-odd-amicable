@@ -66,6 +66,8 @@ def build_spf(n: int) -> list[int]:
     return spf
 
 
+
+
 def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
     """sigma_sq[k] = sigma(k^2) pour k dans [0, n].
 
@@ -145,6 +147,10 @@ def build_omega(n: int, spf: list[int] | None = None) -> list[int]:
                 omega[k] += 1
         return omega
 
+    for k in range(2, n + 1):
+        p = spf[k]
+        q = k // p
+        omega[k] = omega[q] if (q % p == 0) else (omega[q] + 1)
     del spf  # API conservee pour compatibilite
     omega = [0] * (n + 1)
     for k in range(2, n + 1):
@@ -398,6 +404,7 @@ def scan(s_min: int, s_max: int,
 
 
 def verify(c: Candidate, trial_bound: int = 10_000_000) -> tuple[bool, bool]:
+    # Retourne (amicale?, hard?) ; hard = m non factorise avec la borne.
     """Retourne (amicale?, hard?).  hard = m non factorise avec la borne."""
     sigma_m = sigma_if_easy(c.m, trial_bound)
     if sigma_m is None:
