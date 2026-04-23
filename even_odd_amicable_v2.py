@@ -116,9 +116,15 @@ def build_omega(n: int, spf: list[int] | None = None) -> list[int]:
     """
     del spf  # API conservee pour compatibilite
     omega = [0] * (n + 1)
-    for p in build_primes(n):
-        for k in range(p, n + 1, p):
-            omega[k] += 1
+    for k in range(2, n + 1):
+        kk = k
+        prev = 0
+        while kk > 1:
+            p = spf[kk]
+            if p != prev:
+                omega[k] += 1
+                prev = p
+            kk //= p
     return omega
 
 
@@ -398,8 +404,9 @@ def main() -> None:
 
     print(f"# Cribles jusqu'a s = {args.s_max} ...")
     t0 = time.time()
-    sigma_sq = build_sigma_square_sieve(args.s_max)
-    omega = build_omega(args.s_max)
+    spf = build_spf(args.s_max)
+    sigma_sq = build_sigma_square_sieve(args.s_max, spf)
+    omega = build_omega(args.s_max, spf)
     print(f"# Cribles OK en {time.time() - t0:.2f}s\n")
 
     print(f"# Scan s = [{s_min}, {args.s_max}]\n")
