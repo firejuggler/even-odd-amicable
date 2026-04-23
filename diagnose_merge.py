@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import ast
+import re
 import sys
 
 
@@ -16,6 +17,36 @@ FILES = [
 MARKERS = ("<<<<<<<", "=======", ">>>>>>>")
 BAD_VERIFY = '"""Retourne (amicale?, hard?).  hard = m non factorise avec la borne."""'
 BAD_SIGMA_LINE = "    sigma_sq[k] = sigma(k^2) pour k dans [0, n]."
+SIGMA_CANONICAL = """def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
+    # sigma_sq[k] = sigma(k^2) pour k dans [0, n].
+    # Version de production: crible par premiers et multiples.
+    # En CPython, cette variante est souvent plus rapide que SPF pur Python.
+    sigma_sq = [1] * (n + 1)
+    sigma_sq[0] = 0  # convention (non utilise)
+    if spf is None:
+        for p in build_primes(n):
+            for k in range(p, n + 1, p):
+                kk = k
+                e = 0
+                while kk % p == 0:
+                    kk //= p
+                    e += 1
+                sigma_sq[k] *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+        return sigma_sq
+
+    for k in range(2, n + 1):
+        kk = k
+        acc = 1
+        while kk > 1:
+            p = spf[kk]
+            e = 0
+            while kk % p == 0:
+                kk //= p
+                e += 1
+            acc *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+        sigma_sq[k] = acc
+    return sigma_sq
+"""
 
 
 def _repair_source(src: str) -> tuple[str, bool]:
@@ -39,6 +70,16 @@ def _repair_source(src: str) -> tuple[str, bool]:
             BAD_SIGMA_LINE,
             "    # sigma_sq[k] = sigma(k^2) pour k dans [0, n].",
         )
+        repaired = True
+
+    # Si la fonction a été vidée par un merge, on restaure un bloc canonique.
+    m = re.search(
+        r"def build_sigma_square_sieve\(.*?(?=\ndef build_sigma_square_sieve_spf)",
+        src,
+        flags=re.DOTALL,
+    )
+    if m and "sigma_sq =" not in m.group(0):
+        src = src[: m.start()] + SIGMA_CANONICAL + src[m.end():]
         repaired = True
     return src, repaired
 
