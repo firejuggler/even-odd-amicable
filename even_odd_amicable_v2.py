@@ -55,6 +55,12 @@ def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
     # En CPython, cette variante est souvent plus rapide que SPF pur Python.
 
 
+def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
+    # sigma_sq[k] = sigma(k^2) pour k dans [0, n].
+    # Version de production: crible par premiers et multiples.
+    # En CPython, cette variante est souvent plus rapide que SPF pur Python.
+
+
 
 
 
@@ -185,6 +191,7 @@ def build_omega_spf(n: int, spf: list[int] | None = None) -> list[int]:
 
 
 def build_omega_spf(n: int, spf: list[int] | None = None) -> list[int]:
+    # Version omega basee SPF (utile pour benchmark/experimentation).
     """Version omega basee SPF (utile pour benchmark/experimentation)."""
     if spf is None:
         spf = build_spf(n)
