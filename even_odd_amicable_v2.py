@@ -68,6 +68,8 @@ def build_spf(n: int) -> list[int]:
 
 
 
+
+
 def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
     """sigma_sq[k] = sigma(k^2) pour k dans [0, n].
 

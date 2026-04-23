@@ -15,6 +15,15 @@ def _sanity_check_source(path: Path) -> None:
             "(marqueurs <<<<<<< / ======= / >>>>>>>)."
         )
     # Vérifie aussi qu'il n'y a pas d'erreur de parsing Python.
+    try:
+        compile(src, str(path), "exec")
+    except SyntaxError as exc:
+        raise RuntimeError(
+            f"SyntaxError dans {path.name}:{exc.lineno}. "
+            "Le fichier semble contenir un merge incomplet. "
+            "Supprime les marqueurs de conflit et garde une seule version "
+            "de chaque fonction (current/incoming/both nettoye)."
+        ) from exc
     compile(src, str(path), "exec")
 
 
