@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-even_odd_amicable_gmp.py — driver GMP segmente (s_max illimite).
-"""
+# even_odd_amicable_gmp.py — driver GMP segmente (s_max illimite).
 from __future__ import annotations
 import argparse
 import time
