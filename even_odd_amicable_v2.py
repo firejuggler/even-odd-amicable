@@ -1,26 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-even_odd_amicable_v2.py
------------------------
-Recherche de paires amicales pair-impair.  Revision 2 du prototype :
-
-Corrections :
-    - suppression du `pass` mort dans trial_factor
-    - correction de l'affichage de progression (hors chemin candidat)
-    - variable `hard` supprimee
-    - compteur des rejets "HARD" (m non factorise) remonte
-Ameliorations :
-    - crible direct de sigma(s^2) via recurrence multiplicative
-      (supprime factor_with_spf de la boucle chaude)
-    - borne optionnelle --m-max sur le candidat pair
-    - persistance SQLite : candidats survivants + cas HARD + checkpoint
-    - resume de stats en fin de scan (kept_fast / mod8 / square / hard / hits)
-
-Non fait (garde pour une V3 Cython) :
-    - vectorisation numpy des filtres modulaires par blocs
-    - parallelisation par tranches de s
-"""
+# even_odd_amicable_v2.py
+# -----------------------
+# Recherche de paires amicales pair-impair. Revision 2 du prototype.
 
 from __future__ import annotations
 
@@ -36,56 +18,98 @@ from typing import Iterator
 # ------------------------------------------------------------------ #
 
 def build_primes(n: int) -> list[int]:
-    """Eratosthene classique jusqu'a n."""
+    # Eratosthene classique jusqu'a n.
     if n < 2:
         return []
     sieve = bytearray(b"\x01") * (n + 1)
     sieve[0] = sieve[1] = 0
-    for i in range(2, math.isqrt(n) + 1):
+    limit = math.isqrt(n)
+    for i in range(2, limit + 1):
         if sieve[i]:
             sieve[i * i :: i] = bytearray(len(sieve[i * i :: i]))
     return [i for i in range(n + 1) if sieve[i]]
 
 
-def build_sigma_square_sieve(n: int) -> list[int]:
-    """sigma_sq[k] = sigma(k^2) pour k dans [0, n].
+def build_spf(n: int) -> list[int]:
+    # spf[k] = plus petit facteur premier de k (k >= 2).
+    spf = [0] * (n + 1)
+    if n >= 1:
+        spf[1] = 1
+    primes: list[int] = []
+    for i in range(2, n + 1):
+        if spf[i] == 0:
+            spf[i] = i
+            primes.append(i)
+        for p in primes:
+            v = i * p
+            if v > n or p > spf[i]:
+                break
+            spf[v] = p
+    return spf
 
-    Construction par recurrence multiplicative : pour chaque premier p,
-    on parcourt les multiples de p et on divise chaque k par p^e pour
-    en extraire l'exposant, puis on multiplie sigma_sq[k] par
-    (p^(2e+1) - 1) / (p - 1).
 
-    Complexite : O(n log log n) en temps, O(n) en memoire (liste d'entiers).
-    """
+def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
+    # sigma_sq[k] = sigma(k^2) pour k dans [0, n].
+    # Version de production: crible par premiers et multiples.
+    # En CPython, cette variante est souvent plus rapide que SPF pur Python.
     sigma_sq = [1] * (n + 1)
     sigma_sq[0] = 0  # convention (non utilise)
-    primes = build_primes(n)
-    for p in primes:
-        # pour chaque multiple k de p dans [p, n], extraire v_p(k) et
-        # multiplier sigma_sq[k] par sigma(p^(2e)).
-        pe = p
-        # On traite les multiples par puissance de p croissante.
-        # Methode simple : pour chaque k multiple de p, retirer toutes les
-        # occurrences de p.  Un seul passage par k, cumulatif sur les premiers.
-        for k in range(p, n + 1, p):
-            kk = k
+    if spf is None:
+        for p in build_primes(n):
+            for k in range(p, n + 1, p):
+                kk = k
+                e = 0
+                while kk % p == 0:
+                    kk //= p
+                    e += 1
+                sigma_sq[k] *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+        return sigma_sq
+
+    for k in range(2, n + 1):
+        kk = k
+        acc = 1
+        while kk > 1:
+            p = spf[kk]
             e = 0
             while kk % p == 0:
                 kk //= p
                 e += 1
-            # sigma(p^(2e)) = (p^(2e+1) - 1) / (p - 1)
-            sigma_sq[k] *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+            acc *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+        sigma_sq[k] = acc
     return sigma_sq
 
 
-def build_omega(n: int) -> list[int]:
-    """omega[k] = nombre de facteurs premiers distincts de k.
-    Utilise pour appliquer la contrainte de Kanold (omega(s) >= 2)."""
+def build_sigma_square_sieve_spf(n: int, spf: list[int] | None = None) -> list[int]:
+    # Version sigma(k^2) basee SPF (utile pour benchmark/experimentation).
+    if spf is None:
+        spf = build_spf(n)
+    return build_sigma_square_sieve(n, spf)
+
+
+def build_omega(n: int, spf: list[int] | None = None) -> list[int]:
+    # omega[k] = nombre de facteurs premiers distincts de k.
+    # Utilise pour appliquer la contrainte de Kanold (omega(s) >= 2).
+    # Note perf: en CPython, la version "par premiers et multiples" est
+    # souvent plus rapide que la version SPF pure-Python.
     omega = [0] * (n + 1)
-    for p in build_primes(n):
-        for k in range(p, n + 1, p):
-            omega[k] += 1
+    if spf is None:
+        for p in build_primes(n):
+            for k in range(p, n + 1, p):
+                omega[k] += 1
+        return omega
+
+    for k in range(2, n + 1):
+        p = spf[k]
+        q = k // p
+        omega[k] = omega[q] if (q % p == 0) else (omega[q] + 1)
     return omega
+
+
+def build_omega_spf(n: int, spf: list[int] | None = None) -> list[int]:
+    # Version omega basee SPF (utile pour benchmark/experimentation).
+    if spf is None:
+        spf = build_spf(n)
+    return build_omega(n, spf)
 
 
 # ------------------------------------------------------------------ #
@@ -97,7 +121,7 @@ _QR_SETS = tuple({(x * x) % m for x in range(m)} for m in _QR_MODULI)
 
 
 def is_square_fast(n: int) -> bool:
-    """True ssi n est un carre parfait.  Suppose n >= 0."""
+    # True ssi n est un carre parfait. Suppose n >= 0.
     for m, qr in zip(_QR_MODULI, _QR_SETS):
         if (n % m) not in qr:
             return False
@@ -110,9 +134,8 @@ def is_square_fast(n: int) -> bool:
 # ------------------------------------------------------------------ #
 
 def trial_factor(n: int, bound: int) -> tuple[dict[int, int], int]:
-    """Division d'essai jusqu'a `bound`.  Retourne (facteurs, reste).
-    Le reste peut valoir 1 (completement factorise), un premier, ou un
-    composite a cofacteurs > bound."""
+    # Division d'essai jusqu'a `bound`. Retourne (facteurs, reste).
+    # Le reste peut valoir 1, un premier, ou un composite.
     fact: dict[int, int] = {}
     e = 0
     while n % 2 == 0:
@@ -133,7 +156,7 @@ def trial_factor(n: int, bound: int) -> tuple[dict[int, int], int]:
 
 
 def is_probable_prime(n: int) -> bool:
-    """Miller-Rabin deterministe pour n < 3.3 * 10^24."""
+    # Miller-Rabin deterministe pour n < 3.3 * 10^24.
     if n < 2:
         return False
     small = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
@@ -167,7 +190,7 @@ def sigma_from_factorization(fact: dict[int, int]) -> int:
 
 
 def sigma_if_easy(m: int, bound: int = 10_000_000) -> int | None:
-    """Renvoie sigma(m) si m se factorise facilement, sinon None."""
+    # Renvoie sigma(m) si m se factorise facilement, sinon None.
     fact, rest = trial_factor(m, bound)
     if rest == 1:
         return sigma_from_factorization(fact)
@@ -181,19 +204,19 @@ def sigma_if_easy(m: int, bound: int = 10_000_000) -> int | None:
 #  4. Persistance SQLite                                             #
 # ------------------------------------------------------------------ #
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS candidates (
-    s         INTEGER PRIMARY KEY,
-    n         TEXT NOT NULL,
-    m         TEXT NOT NULL,
-    sigma_n   TEXT NOT NULL,
-    status    TEXT NOT NULL            -- 'survived', 'amicable', 'hard'
-);
-CREATE TABLE IF NOT EXISTS checkpoint (
-    id            INTEGER PRIMARY KEY CHECK (id = 1),
-    s_last_done   INTEGER NOT NULL
-);
-"""
+_SCHEMA = (
+    "CREATE TABLE IF NOT EXISTS candidates (\n"
+    "    s         INTEGER PRIMARY KEY,\n"
+    "    n         TEXT NOT NULL,\n"
+    "    m         TEXT NOT NULL,\n"
+    "    sigma_n   TEXT NOT NULL,\n"
+    "    status    TEXT NOT NULL\n"
+    ");\n"
+    "CREATE TABLE IF NOT EXISTS checkpoint (\n"
+    "    id            INTEGER PRIMARY KEY CHECK (id = 1),\n"
+    "    s_last_done   INTEGER NOT NULL\n"
+    ");\n"
+)
 
 def open_db(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
@@ -259,7 +282,7 @@ def scan(s_min: int, s_max: int,
          verbose_every: int,
          checkpoint_every: int,
          stats: Stats) -> Iterator[Candidate]:
-    """Itere sur s impairs et yield les candidats survivant aux filtres."""
+    # Itère sur s impairs et yield les candidats survivant aux filtres.
     if s_min % 2 == 0:
         s_min += 1
 
@@ -272,26 +295,26 @@ def scan(s_min: int, s_max: int,
         # Kanold : n = s^2 doit avoir au moins 2 premiers distincts
         # => equivalent a omega(s) >= 2.
         if omega[s] < 2:
-            pass_progress = True
-        else:
-            sig_n = sigma_sq[s]
-            n = s * s
-            m = sig_n - n
+            continue
 
-            if m > 0 and (m & 1) == 0 and m != n and (m_max is None or m <= m_max):
-                stats.kept_fast += 1
+        sig_n = sigma_sq[s]
+        n = s * s
+        m = sig_n - n
 
-                v2 = (m & -m).bit_length() - 1
-                odd_part = m >> v2
+        if m > 0 and (m & 1) == 0 and m != n and (m_max is None or m <= m_max):
+            stats.kept_fast += 1
 
-                if (odd_part & 7) == 1:     # carre impair ≡ 1 (mod 8)
-                    stats.kept_mod8 += 1
+            v2 = (m & -m).bit_length() - 1
+            odd_part = m >> v2
 
-                    if is_square_fast(odd_part):
-                        stats.kept_square += 1
-                        cand = Candidate(s=s, n=n, m=m, sigma_n=sig_n)
-                        save_candidate(conn, cand, "survived")
-                        yield cand
+            if (odd_part & 7) == 1:     # carre impair ≡ 1 (mod 8)
+                stats.kept_mod8 += 1
+
+                if is_square_fast(odd_part):
+                    stats.kept_square += 1
+                    cand = Candidate(s=s, n=n, m=m, sigma_n=sig_n)
+                    save_candidate(conn, cand, "survived")
+                    yield cand
 
         # progression (hors chemin candidat)
         if verbose_every and s - last_print_s >= verbose_every:
@@ -308,7 +331,7 @@ def scan(s_min: int, s_max: int,
 
 
 def verify(c: Candidate, trial_bound: int = 10_000_000) -> tuple[bool, bool]:
-    """Retourne (amicale?, hard?).  'hard' = m n'a pas pu etre factorise."""
+    # Retourne (amicale?, hard?) ; hard = m non factorise avec la borne.
     sigma_m = sigma_if_easy(c.m, trial_bound)
     if sigma_m is None:
         return False, True
@@ -321,7 +344,7 @@ def verify(c: Candidate, trial_bound: int = 10_000_000) -> tuple[bool, bool]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description=__doc__,
+        description="Recherche de paires amicales pair-impair.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("--s-min", type=int, default=3)
