@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-even_odd_amicable_gmp.py — driver GMP segmente (s_max illimite).
-"""
+# even_odd_amicable_gmp.py — driver GMP segmente (s_max illimite).
 from __future__ import annotations
 import argparse
 import time
@@ -14,7 +12,7 @@ from even_odd_amicable_v2 import (
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__,
+    ap = argparse.ArgumentParser(description="Driver GMP segmente pair-impair.",
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--s-min", type=int, default=3)
     ap.add_argument("--s-max", type=int, default=1_000_000)
