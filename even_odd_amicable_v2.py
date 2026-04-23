@@ -1,26 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-even_odd_amicable_v2.py
------------------------
-Recherche de paires amicales pair-impair.  Revision 2 du prototype :
-
-Corrections :
-    - suppression du `pass` mort dans trial_factor
-    - correction de l'affichage de progression (hors chemin candidat)
-    - variable `hard` supprimee
-    - compteur des rejets "HARD" (m non factorise) remonte
-Ameliorations :
-    - crible direct de sigma(s^2) via recurrence multiplicative
-      (supprime factor_with_spf de la boucle chaude)
-    - borne optionnelle --m-max sur le candidat pair
-    - persistance SQLite : candidats survivants + cas HARD + checkpoint
-    - resume de stats en fin de scan (kept_fast / mod8 / square / hard / hits)
-
-Non fait (garde pour une V3 Cython) :
-    - vectorisation numpy des filtres modulaires par blocs
-    - parallelisation par tranches de s
-"""
+# even_odd_amicable_v2.py
+# -----------------------
+# Recherche de paires amicales pair-impair. Revision 2 du prototype.
 
 from __future__ import annotations
 
@@ -64,6 +46,8 @@ def build_spf(n: int) -> list[int]:
                 break
             spf[v] = p
     return spf
+
+
 
 
 

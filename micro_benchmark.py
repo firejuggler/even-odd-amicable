@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Micro-benchmark local pour comparer:
+#   - version SPF (actuelle) de sigma(k^2) / omega(k)
+#   - version "legacy" (crible par premiers et multiples)
 """
 Micro-benchmark local pour comparer:
   - version SPF (actuelle) de sigma(k^2) / omega(k)
