@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""Compat: permet d'executer le micro-benchmark via `python bench.txt`."""
+
+from micro_benchmark import main
+
+
+if __name__ == "__main__":
+    main()
