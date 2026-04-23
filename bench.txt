@@ -9,6 +9,27 @@ from pathlib import Path
 def _sanity_check_source(path: Path) -> None:
     src = path.read_text(encoding="utf-8")
     markers = ("<<<<<<<", "=======", ">>>>>>>")
+    repaired = False
+    if any(m in src for m in markers):
+        # Tentative de réparation minimale: suppression des lignes de marqueurs.
+        src = "\n".join(
+            line for line in src.splitlines()
+            if not line.startswith(("<<<<<<<", "=======", ">>>>>>>"))
+        ) + "\n"
+        repaired = True
+
+    # Certains merges Windows ont laissé un docstring `verify` invalide.
+    bad_verify = '"""Retourne (amicale?, hard?).  hard = m non factorise avec la borne."""'
+    if bad_verify in src:
+        src = src.replace(
+            bad_verify,
+            "# Retourne (amicale?, hard?) ; hard = m non factorise avec la borne.",
+        )
+        repaired = True
+
+    if repaired:
+        path.write_text(src, encoding="utf-8")
+
     if any(m in src for m in markers):
         raise RuntimeError(
             f"Conflit de merge detecte dans {path.name} "
