@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Compat: permet d'executer le micro-benchmark via `python bench.txt`.
 """Compat: permet d'executer le micro-benchmark via `python bench.txt`."""
 
 from __future__ import annotations
