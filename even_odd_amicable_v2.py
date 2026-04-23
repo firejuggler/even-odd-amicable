@@ -41,50 +41,96 @@ def build_primes(n: int) -> list[int]:
         return []
     sieve = bytearray(b"\x01") * (n + 1)
     sieve[0] = sieve[1] = 0
-    for i in range(2, math.isqrt(n) + 1):
+    limit = math.isqrt(n)
+    for i in range(2, limit + 1):
         if sieve[i]:
             sieve[i * i :: i] = bytearray(len(sieve[i * i :: i]))
     return [i for i in range(n + 1) if sieve[i]]
 
 
-def build_sigma_square_sieve(n: int) -> list[int]:
+def build_spf(n: int) -> list[int]:
+    """spf[k] = plus petit facteur premier de k (k >= 2)."""
+    spf = [0] * (n + 1)
+    if n >= 1:
+        spf[1] = 1
+    primes: list[int] = []
+    for i in range(2, n + 1):
+        if spf[i] == 0:
+            spf[i] = i
+            primes.append(i)
+        for p in primes:
+            v = i * p
+            if v > n or p > spf[i]:
+                break
+            spf[v] = p
+    return spf
+
+
+def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
     """sigma_sq[k] = sigma(k^2) pour k dans [0, n].
 
-    Construction par recurrence multiplicative : pour chaque premier p,
-    on parcourt les multiples de p et on divise chaque k par p^e pour
-    en extraire l'exposant, puis on multiplie sigma_sq[k] par
-    (p^(2e+1) - 1) / (p - 1).
-
-    Complexite : O(n log log n) en temps, O(n) en memoire (liste d'entiers).
+    Version de production: crible par premiers et multiples.
+    En CPython, cette variante est souvent plus rapide que SPF pur Python.
     """
+    del spf  # API conservee pour compatibilite
     sigma_sq = [1] * (n + 1)
     sigma_sq[0] = 0  # convention (non utilise)
-    primes = build_primes(n)
-    for p in primes:
-        # pour chaque multiple k de p dans [p, n], extraire v_p(k) et
-        # multiplier sigma_sq[k] par sigma(p^(2e)).
-        pe = p
-        # On traite les multiples par puissance de p croissante.
-        # Methode simple : pour chaque k multiple de p, retirer toutes les
-        # occurrences de p.  Un seul passage par k, cumulatif sur les premiers.
+    for p in build_primes(n):
         for k in range(p, n + 1, p):
             kk = k
             e = 0
             while kk % p == 0:
                 kk //= p
                 e += 1
-            # sigma(p^(2e)) = (p^(2e+1) - 1) / (p - 1)
             sigma_sq[k] *= (pow(p, 2 * e + 1) - 1) // (p - 1)
     return sigma_sq
 
 
-def build_omega(n: int) -> list[int]:
+def build_sigma_square_sieve_spf(n: int, spf: list[int] | None = None) -> list[int]:
+    """Version sigma(k^2) basee SPF (utile pour benchmark/experimentation)."""
+    if spf is None:
+        spf = build_spf(n)
+    sigma_sq = [1] * (n + 1)
+    sigma_sq[0] = 0
+    for k in range(2, n + 1):
+        kk = k
+        acc = 1
+        while kk > 1:
+            p = spf[kk]
+            e = 0
+            while kk % p == 0:
+                kk //= p
+                e += 1
+            acc *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+        sigma_sq[k] = acc
+    return sigma_sq
+
+
+def build_omega(n: int, spf: list[int] | None = None) -> list[int]:
     """omega[k] = nombre de facteurs premiers distincts de k.
-    Utilise pour appliquer la contrainte de Kanold (omega(s) >= 2)."""
+    Utilise pour appliquer la contrainte de Kanold (omega(s) >= 2).
+
+    Note perf:
+      En CPython, cette version "par premiers et multiples" reste en
+      pratique plus rapide que la version SPF pure-Python.
+    """
+    del spf  # API conservee pour compatibilite
     omega = [0] * (n + 1)
     for p in build_primes(n):
         for k in range(p, n + 1, p):
             omega[k] += 1
+    return omega
+
+
+def build_omega_spf(n: int, spf: list[int] | None = None) -> list[int]:
+    """Version omega basee SPF (utile pour benchmark/experimentation)."""
+    if spf is None:
+        spf = build_spf(n)
+    omega = [0] * (n + 1)
+    for k in range(2, n + 1):
+        p = spf[k]
+        q = k // p
+        omega[k] = omega[q] if (q % p == 0) else (omega[q] + 1)
     return omega
 
 
@@ -272,26 +318,26 @@ def scan(s_min: int, s_max: int,
         # Kanold : n = s^2 doit avoir au moins 2 premiers distincts
         # => equivalent a omega(s) >= 2.
         if omega[s] < 2:
-            pass_progress = True
-        else:
-            sig_n = sigma_sq[s]
-            n = s * s
-            m = sig_n - n
+            continue
 
-            if m > 0 and (m & 1) == 0 and m != n and (m_max is None or m <= m_max):
-                stats.kept_fast += 1
+        sig_n = sigma_sq[s]
+        n = s * s
+        m = sig_n - n
 
-                v2 = (m & -m).bit_length() - 1
-                odd_part = m >> v2
+        if m > 0 and (m & 1) == 0 and m != n and (m_max is None or m <= m_max):
+            stats.kept_fast += 1
 
-                if (odd_part & 7) == 1:     # carre impair ≡ 1 (mod 8)
-                    stats.kept_mod8 += 1
+            v2 = (m & -m).bit_length() - 1
+            odd_part = m >> v2
 
-                    if is_square_fast(odd_part):
-                        stats.kept_square += 1
-                        cand = Candidate(s=s, n=n, m=m, sigma_n=sig_n)
-                        save_candidate(conn, cand, "survived")
-                        yield cand
+            if (odd_part & 7) == 1:     # carre impair ≡ 1 (mod 8)
+                stats.kept_mod8 += 1
+
+                if is_square_fast(odd_part):
+                    stats.kept_square += 1
+                    cand = Candidate(s=s, n=n, m=m, sigma_n=sig_n)
+                    save_candidate(conn, cand, "survived")
+                    yield cand
 
         # progression (hors chemin candidat)
         if verbose_every and s - last_print_s >= verbose_every:
