@@ -24,6 +24,7 @@ def _sanity_check_source(path: Path) -> None:
             "Supprime les marqueurs de conflit et garde une seule version "
             "de chaque fonction (current/incoming/both nettoye)."
         ) from exc
+    compile(src, str(path), "exec")
 
 
 if __name__ == "__main__":
@@ -32,4 +33,8 @@ if __name__ == "__main__":
     _sanity_check_source(base / "micro_benchmark.py")
     _sanity_check_source(base / "even_odd_amicable_gmp.py")
     from micro_benchmark import main
+from micro_benchmark import main
+
+
+if __name__ == "__main__":
     main()
