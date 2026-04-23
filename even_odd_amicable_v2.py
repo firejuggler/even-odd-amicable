@@ -53,27 +53,45 @@ def build_spf(n: int) -> list[int]:
     spf = [0] * (n + 1)
     if n >= 1:
         spf[1] = 1
+    primes: list[int] = []
     for i in range(2, n + 1):
         if spf[i] == 0:
             spf[i] = i
-            if i * i <= n:
-                for j in range(i * i, n + 1, i):
-                    if spf[j] == 0:
-                        spf[j] = i
+            primes.append(i)
+        for p in primes:
+            v = i * p
+            if v > n or p > spf[i]:
+                break
+            spf[v] = p
     return spf
 
 
 def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
     """sigma_sq[k] = sigma(k^2) pour k dans [0, n].
 
-    Construction via SPF (smallest prime factor) :
-    pour chaque k, on factorise rapidement k en lisant spf[] puis on applique
-    la formule multiplicative sigma(k^2) = Π_p (p^(2e+1)-1)/(p-1).
+    Version de production: crible par premiers et multiples.
+    En CPython, cette variante est souvent plus rapide que SPF pur Python.
     """
+    del spf  # API conservee pour compatibilite
+    sigma_sq = [1] * (n + 1)
+    sigma_sq[0] = 0  # convention (non utilise)
+    for p in build_primes(n):
+        for k in range(p, n + 1, p):
+            kk = k
+            e = 0
+            while kk % p == 0:
+                kk //= p
+                e += 1
+            sigma_sq[k] *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+    return sigma_sq
+
+
+def build_sigma_square_sieve_spf(n: int, spf: list[int] | None = None) -> list[int]:
+    """Version sigma(k^2) basee SPF (utile pour benchmark/experimentation)."""
     if spf is None:
         spf = build_spf(n)
     sigma_sq = [1] * (n + 1)
-    sigma_sq[0] = 0  # convention (non utilise)
+    sigma_sq[0] = 0
     for k in range(2, n + 1):
         kk = k
         acc = 1
@@ -90,9 +108,13 @@ def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
 
 def build_omega(n: int, spf: list[int] | None = None) -> list[int]:
     """omega[k] = nombre de facteurs premiers distincts de k.
-    Utilise pour appliquer la contrainte de Kanold (omega(s) >= 2)."""
-    if spf is None:
-        spf = build_spf(n)
+    Utilise pour appliquer la contrainte de Kanold (omega(s) >= 2).
+
+    Note perf:
+      En CPython, cette version "par premiers et multiples" reste en
+      pratique plus rapide que la version SPF pure-Python.
+    """
+    del spf  # API conservee pour compatibilite
     omega = [0] * (n + 1)
     for k in range(2, n + 1):
         kk = k
@@ -103,6 +125,18 @@ def build_omega(n: int, spf: list[int] | None = None) -> list[int]:
                 omega[k] += 1
                 prev = p
             kk //= p
+    return omega
+
+
+def build_omega_spf(n: int, spf: list[int] | None = None) -> list[int]:
+    """Version omega basee SPF (utile pour benchmark/experimentation)."""
+    if spf is None:
+        spf = build_spf(n)
+    omega = [0] * (n + 1)
+    for k in range(2, n + 1):
+        p = spf[k]
+        q = k // p
+        omega[k] = omega[q] if (q % p == 0) else (omega[q] + 1)
     return omega
 
 
