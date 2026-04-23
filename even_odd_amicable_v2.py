@@ -41,50 +41,68 @@ def build_primes(n: int) -> list[int]:
         return []
     sieve = bytearray(b"\x01") * (n + 1)
     sieve[0] = sieve[1] = 0
-    for i in range(2, math.isqrt(n) + 1):
+    limit = math.isqrt(n)
+    for i in range(2, limit + 1):
         if sieve[i]:
             sieve[i * i :: i] = bytearray(len(sieve[i * i :: i]))
     return [i for i in range(n + 1) if sieve[i]]
 
 
-def build_sigma_square_sieve(n: int) -> list[int]:
+def build_spf(n: int) -> list[int]:
+    """spf[k] = plus petit facteur premier de k (k >= 2)."""
+    spf = [0] * (n + 1)
+    if n >= 1:
+        spf[1] = 1
+    for i in range(2, n + 1):
+        if spf[i] == 0:
+            spf[i] = i
+            if i * i <= n:
+                for j in range(i * i, n + 1, i):
+                    if spf[j] == 0:
+                        spf[j] = i
+    return spf
+
+
+def build_sigma_square_sieve(n: int, spf: list[int] | None = None) -> list[int]:
     """sigma_sq[k] = sigma(k^2) pour k dans [0, n].
 
-    Construction par recurrence multiplicative : pour chaque premier p,
-    on parcourt les multiples de p et on divise chaque k par p^e pour
-    en extraire l'exposant, puis on multiplie sigma_sq[k] par
-    (p^(2e+1) - 1) / (p - 1).
-
-    Complexite : O(n log log n) en temps, O(n) en memoire (liste d'entiers).
+    Construction via SPF (smallest prime factor) :
+    pour chaque k, on factorise rapidement k en lisant spf[] puis on applique
+    la formule multiplicative sigma(k^2) = Π_p (p^(2e+1)-1)/(p-1).
     """
+    if spf is None:
+        spf = build_spf(n)
     sigma_sq = [1] * (n + 1)
     sigma_sq[0] = 0  # convention (non utilise)
-    primes = build_primes(n)
-    for p in primes:
-        # pour chaque multiple k de p dans [p, n], extraire v_p(k) et
-        # multiplier sigma_sq[k] par sigma(p^(2e)).
-        pe = p
-        # On traite les multiples par puissance de p croissante.
-        # Methode simple : pour chaque k multiple de p, retirer toutes les
-        # occurrences de p.  Un seul passage par k, cumulatif sur les premiers.
-        for k in range(p, n + 1, p):
-            kk = k
+    for k in range(2, n + 1):
+        kk = k
+        acc = 1
+        while kk > 1:
+            p = spf[kk]
             e = 0
             while kk % p == 0:
                 kk //= p
                 e += 1
-            # sigma(p^(2e)) = (p^(2e+1) - 1) / (p - 1)
-            sigma_sq[k] *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+            acc *= (pow(p, 2 * e + 1) - 1) // (p - 1)
+        sigma_sq[k] = acc
     return sigma_sq
 
 
-def build_omega(n: int) -> list[int]:
+def build_omega(n: int, spf: list[int] | None = None) -> list[int]:
     """omega[k] = nombre de facteurs premiers distincts de k.
     Utilise pour appliquer la contrainte de Kanold (omega(s) >= 2)."""
+    if spf is None:
+        spf = build_spf(n)
     omega = [0] * (n + 1)
-    for p in build_primes(n):
-        for k in range(p, n + 1, p):
-            omega[k] += 1
+    for k in range(2, n + 1):
+        kk = k
+        prev = 0
+        while kk > 1:
+            p = spf[kk]
+            if p != prev:
+                omega[k] += 1
+                prev = p
+            kk //= p
     return omega
 
 
@@ -272,26 +290,26 @@ def scan(s_min: int, s_max: int,
         # Kanold : n = s^2 doit avoir au moins 2 premiers distincts
         # => equivalent a omega(s) >= 2.
         if omega[s] < 2:
-            pass_progress = True
-        else:
-            sig_n = sigma_sq[s]
-            n = s * s
-            m = sig_n - n
+            continue
 
-            if m > 0 and (m & 1) == 0 and m != n and (m_max is None or m <= m_max):
-                stats.kept_fast += 1
+        sig_n = sigma_sq[s]
+        n = s * s
+        m = sig_n - n
 
-                v2 = (m & -m).bit_length() - 1
-                odd_part = m >> v2
+        if m > 0 and (m & 1) == 0 and m != n and (m_max is None or m <= m_max):
+            stats.kept_fast += 1
 
-                if (odd_part & 7) == 1:     # carre impair ≡ 1 (mod 8)
-                    stats.kept_mod8 += 1
+            v2 = (m & -m).bit_length() - 1
+            odd_part = m >> v2
 
-                    if is_square_fast(odd_part):
-                        stats.kept_square += 1
-                        cand = Candidate(s=s, n=n, m=m, sigma_n=sig_n)
-                        save_candidate(conn, cand, "survived")
-                        yield cand
+            if (odd_part & 7) == 1:     # carre impair ≡ 1 (mod 8)
+                stats.kept_mod8 += 1
+
+                if is_square_fast(odd_part):
+                    stats.kept_square += 1
+                    cand = Candidate(s=s, n=n, m=m, sigma_n=sig_n)
+                    save_candidate(conn, cand, "survived")
+                    yield cand
 
         # progression (hors chemin candidat)
         if verbose_every and s - last_print_s >= verbose_every:
@@ -352,8 +370,9 @@ def main() -> None:
 
     print(f"# Cribles jusqu'a s = {args.s_max} ...")
     t0 = time.time()
-    sigma_sq = build_sigma_square_sieve(args.s_max)
-    omega = build_omega(args.s_max)
+    spf = build_spf(args.s_max)
+    sigma_sq = build_sigma_square_sieve(args.s_max, spf)
+    omega = build_omega(args.s_max, spf)
     print(f"# Cribles OK en {time.time() - t0:.2f}s\n")
 
     print(f"# Scan s = [{s_min}, {args.s_max}]\n")
